@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soil Moisture Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .dashboard-container {
+            padding: 2rem;
+        }
+        .card {
+            margin-bottom: 1.5rem;
+        }
+        .card-title {
+            font-weight: bold;
+        }
+        .graph-card {
+            padding: 1.5rem;
+        }
+        .center-cards {
+            margin-bottom: 2rem;
+        }
+        .center-cards .card {
+            width: 100%;
+            margin: 0 15px;
+        }
+        .row-equal {
+            display: flex;
+            justify-content: space-between;
+        }
+        /* Estilização da barra de progresso com gradiente */
+        .progress {
+            height: 30px;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            transition: width 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container dashboard-container">
+        <!-- Top Cards: Manual Pump Control and Soil Moisture -->
+        <div class="row justify-content-center center-cards">
+            <div class="col-md-4">
+                <!-- Manual Pump Control Card -->
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Controle manual</h5>
+                        <button id="pumpButton" class="btn btn-success" onclick="togglePower()">Ligar</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Soil Moisture Percentage Card -->
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Umidade atual</h5>
+                        <h2 id="moistureValue" class="display-4">--%</h2>
+                        <!-- Barra de progresso -->
+                        <div class="progress mt-3">
+                            <div id="moistureProgress" class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weekly Average Moisture Chart Card -->
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card graph-card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center">Média de umidade dos últimos 7 dias</h5>
+                        <canvas id="moistureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to update soil moisture percentage and progress bar
+        function updateMoistureValue(percentage) {
+            const moistureValueElem = document.getElementById('moistureValue');
+            const moistureProgressElem = document.getElementById('moistureProgress');
+            
+            // Update percentage display
+            moistureValueElem.innerText = percentage + '%';
+            
+            // Update progress bar
+            moistureProgressElem.style.width = percentage + '%';
+            moistureProgressElem.setAttribute('aria-valuenow', percentage);
+        }
+
+        // Chart.js for displaying the weekly average moisture
+        const ctx = document.getElementById('moistureChart').getContext('2d');
+        const moistureChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+                datasets: [{
+                    label: 'Média de umidade (%)',
+                    data: [45, 50, 55, 60, 52, 48, 56], // Should be dynamically updated
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        function pad(value) {
+          return value < 10 ? '0' + value : value;
+        }
+        // Function to update the moisture chart dynamically
+        function updateMoistureChart(data) {
+            moistureChart.data.labels = data.map(
+              value => {
+                let date = new Date(value.date);
+                let day = pad(date.getUTCDate());
+                let month = pad(date.getUTCMonth() + 1);  // getUTCMonth() retorna meses de 0 a 11, por isso adicionamos 1
+                let year = date.getUTCFullYear();
+                let hours = pad(date.getUTCHours());
+                let minutes = pad(date.getUTCMinutes());
+                let seconds = pad(date.getUTCSeconds());
+                let formattedDate = `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+                return formattedDate
+              } 
+            )
+            moistureChart.data.datasets[0].data = data.map(value => parseFloat(value.avarage).toFixed(2));
+            moistureChart.update();
+        }
+        // Busca o estado atual do pump ao carregar a página
+        fetch("http://localhost:8080/graph")
+          .then(response => response.json())  // Converte a resposta para JSON
+          .then(avarages => {
+            updateMoistureChart(avarages)
+          })
+          .catch((error) => {
+            console.error('Error fetching state:', error);
+          });
+
+
+        // Connect to MQTT broker
+        const mqttUrl = 'ws://localhost:8081'; 
+        const client = mqtt.connect(mqttUrl);
+
+        // Subscribe to the "data" topic
+        client.on('connect', function () {
+            console.log('Connected to MQTT broker');
+            client.subscribe('data', function (err) {
+                if (!err) {
+                    console.log('Subscribed to topic "data"');
+                }
+            });
+            client.subscribe('power', function (err) {
+                if (!err) {
+                    console.log('Subscribed to topic "power"');
+                }
+            });
+        });
+
+        // Handle incoming messages
+        client.on('message', function (topic, message) {
+            console.log(topic, message)
+            if (topic === 'data') {
+                const data = JSON.parse(message.toString());
+                const moisturePercentage = parseFloat(data.value);
+                updateMoistureValue(moisturePercentage);
+            }
+            if (topic === 'power') {
+              const { power } = JSON.parse(message.toString())
+              togglePump(power)
+            }
+        });
+
+        function togglePump(power) {
+          console.log('toggle pump')
+            if (power) {
+                pumpButton.innerText = 'Desligar';
+                pumpButton.classList.remove('btn-success');
+                pumpButton.classList.add('btn-danger');
+            } else {
+                pumpButton.innerText = 'Ligar';
+                pumpButton.classList.remove('btn-danger');
+                pumpButton.classList.add('btn-success');
+            }
+        }
+
+        // Function to toggle pump on/off
+        function togglePower() {
+          let pumpButton = document.getElementById('pumpButton');
+          let power = false;
+          if (pumpButton.innerText === 'Turn On') {
+            power = true;
+          }           
+          // Envia o comando para alternar o estado do pump via POST
+          fetch("http://localhost:8080/switch", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'  // Especifica que o corpo é JSON
+            },
+            body: JSON.stringify({ power })  // Envia o estado como JSON
+          })
+            .then(response => response.json())  // Processa a resposta como JSON
+            .then(data => {
+              console.log('Success:', data);
+            })
+            .catch((error) => {
+              console.error('Error:', error);
+            });
+        }
+        // Busca o estado atual do pump ao carregar a página
+        fetch("http://localhost:8080/state")
+          .then(response => response.json())  // Converte a resposta para JSON
+          .then(data => {
+            togglePump(data.power);  // Atualiza o estado do botão baseado na resposta
+          })
+          .catch((error) => {
+            console.error('Error fetching state:', error);
+          });
+
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
+

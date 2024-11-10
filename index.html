@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soil Moisture Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .dashboard-container {
+            padding: 2rem;
+        }
+        .card {
+            margin-bottom: 1.5rem;
+        }
+        .card-title {
+            font-weight: bold;
+        }
+        .graph-card {
+            padding: 1.5rem;
+        }
+        .center-cards {
+            margin-bottom: 2rem;
+        }
+        .center-cards .card {
+            width: 100%;
+            margin: 0 15px;
+        }
+        .row-equal {
+            display: flex;
+            justify-content: space-between;
+        }
+        /* Estilização da barra de progresso com gradiente */
+        .progress {
+            height: 30px;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            transition: width 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container dashboard-container">
+        <!-- Top Cards: Manual Pump Control and Soil Moisture -->
+        <div class="row justify-content-center center-cards">
+            <div class="col-md-4">
+                <!-- Manual Pump Control Card -->
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Manual Pump Control</h5>
+                        <button id="pumpButton" class="btn btn-success" onclick="togglePump()">Turn On</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Soil Moisture Percentage Card -->
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Current Soil Moisture</h5>
+                        <h2 id="moistureValue" class="display-4">--%</h2>
+                        <!-- Barra de progresso -->
+                        <div class="progress mt-3">
+                            <div id="moistureProgress" class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weekly Average Moisture Chart Card -->
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card graph-card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center">Weekly Average Moisture</h5>
+                        <canvas id="moistureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to toggle pump on/off
+        function togglePump() {
+            let pumpButton = document.getElementById('pumpButton');
+            if (pumpButton.innerText === 'Turn On') {
+                pumpButton.innerText = 'Turn Off';
+                pumpButton.classList.remove('btn-success');
+                pumpButton.classList.add('btn-danger');
+            } else {
+                pumpButton.innerText = 'Turn On';
+                pumpButton.classList.remove('btn-danger');
+                pumpButton.classList.add('btn-success');
+            }
+            // Implement the function logic to send the pump state here.
+        }
+
+        // Function to update soil moisture percentage and progress bar
+        function updateMoistureValue(percentage) {
+            const moistureValueElem = document.getElementById('moistureValue');
+            const moistureProgressElem = document.getElementById('moistureProgress');
+            
+            // Update percentage display
+            moistureValueElem.innerText = percentage + '%';
+            
+            // Update progress bar
+            moistureProgressElem.style.width = percentage + '%';
+            moistureProgressElem.setAttribute('aria-valuenow', percentage);
+        }
+
+        // Chart.js for displaying the weekly average moisture
+        const ctx = document.getElementById('moistureChart').getContext('2d');
+        const moistureChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+                datasets: [{
+                    label: 'Average Moisture (%)',
+                    data: [45, 50, 55, 60, 52, 48, 56], // Should be dynamically updated
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        // Function to update the moisture chart dynamically
+        function updateMoistureChart(data) {
+            moistureChart.data.datasets[0].data = data;
+            moistureChart.update();
+        }
+
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
+

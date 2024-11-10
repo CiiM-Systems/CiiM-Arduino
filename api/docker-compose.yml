@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: node-api
+    restart: always
+    depends_on:
+      - postgres
+      - mqtt-broker
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/mydatabase
+      - MQTT_URL=ws://mqtt-broker:8081
+    ports:
+      - '8080:3000'  # Porta da API
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:13
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydatabase
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    networks:
+      - app-network
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0
+    container_name: mqtt-broker
+    restart: always
+    ports:
+      - '1883:1883'  # Porta MQTT
+      - '8081:8081'  # Porta WebSocket
+    volumes:
+      - ./mosquitto:/mosquitto/config
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+
